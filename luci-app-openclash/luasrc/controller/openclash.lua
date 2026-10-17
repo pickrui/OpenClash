@@ -2315,7 +2315,7 @@ end
 
 function action_backup()
 	local config = SYS.call("cp /etc/config/openclash /etc/openclash/openclash >/dev/null 2>&1")
-	local reader = ltn12_popen("exec tar -C '/etc/openclash/' -cz . 2>/dev/null")
+	local reader = ltn12_popen("printf '.oix_device_id\\n./.oix_device_id\\n' > /tmp/oc_exclude.txt && exec tar -C '/etc/openclash/' -X '/tmp/oc_exclude.txt' -cz . 2>/dev/null")
 
 	HTTP.header(
 		'Content-Disposition', 'attachment; filename="Backup-OpenClash-%s-%s-%s.tar.gz"' %{
@@ -2330,7 +2330,7 @@ end
 
 function action_backup_ex_core()
 	local config = SYS.call("cp /etc/config/openclash /etc/openclash/openclash >/dev/null 2>&1")
-	local reader = ltn12_popen("echo 'core' > /tmp/oc_exclude.txt && exec tar -C '/etc/openclash/' -X '/tmp/oc_exclude.txt' -cz . 2>/dev/null")
+	local reader = ltn12_popen("printf 'core\\n.oix_device_id\\n./.oix_device_id\\n' > /tmp/oc_exclude.txt && exec tar -C '/etc/openclash/' -X '/tmp/oc_exclude.txt' -cz . 2>/dev/null")
 
 	HTTP.header(
 		'Content-Disposition', 'attachment; filename="Backup-OpenClash-Exclude-Cores-%s-%s-%s.tar.gz"' %{
@@ -6746,12 +6746,18 @@ local function oix_quote(value)
 	return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end
 
+-- 随面板请求发送的设备标识与客户端声明；标识只含十六进制和连字符，可以直接放进命令行
+local function oix_client_headers()
+	local device = fs.oix_device_id()
+	return " -H 'X-oixCloud-Client: openclash'" .. (device and (" -H 'X-oixCloud-Device: " .. device .. "'") or "")
+end
+
 local function oix_progress(stage, text)
 	write_padded('{"stage":"' .. stage .. '","text":"' .. luci.i18n.translate(text) .. '"}')
 end
 
 local function oix_api(path, token, payload, timeout, with_ua)
-	local cmd = string.format("curl -sL -m %d --retry 2 -H 'Content-Type: application/json'", timeout or 20)
+	local cmd = string.format("curl -sL -m %d --retry 2 -H 'Content-Type: application/json'", timeout or 20) .. oix_client_headers()
 	if with_ua then
 		cmd = cmd .. " -H 'User-Agent: OpenClash for oixCloud'"
 	end
@@ -6924,7 +6930,7 @@ end
 function oix_logout()
 	local token = fs.uci_get_config("config", "oix_token")
 	if oix_valid_token(token) then
-		SYS.call(string.format("curl -sL -m 10 --proto '=https' --proto-redir '=https' -H 'User-Agent: OpenClash for oixCloud' -H 'X-oixCloud-Client: openclash' -H 'Content-Type: application/json' -H 'Authorization: Bearer %s' -X POST https://oix-api.dler.io/api/v1/logout >/dev/null 2>&1", token))
+		SYS.call(string.format("curl -sL -m 10 --proto '=https' --proto-redir '=https' -H 'User-Agent: OpenClash for oixCloud'%s -H 'Content-Type: application/json' -H 'Authorization: Bearer %s' -X POST https://oix-api.dler.io/api/v1/logout >/dev/null 2>&1", oix_client_headers(), token))
 	end
 	uci:delete("openclash", "config", "oix_token")
 	uci:delete("openclash", "config", "oix_email")
@@ -6948,7 +6954,7 @@ function oix_info()
 	local token = fs.uci_get_config("config", "oix_token")
 	path = "/tmp/oix_info"
 	if token and oix_valid_token(token) then
-		get_info = string.format("curl -sL -m 15 -H 'Content-Type: application/json' -H 'Authorization: Bearer %s' -X POST https://oix-api.dler.io/api/v1/information -o %s", token, path)
+		get_info = string.format("curl -sL -m 15 -H 'User-Agent: OpenClash for oixCloud'%s -H 'Content-Type: application/json' -H 'Authorization: Bearer %s' -X POST https://oix-api.dler.io/api/v1/information -o %s", oix_client_headers(), token, path)
 		if not fs.access(path) then
 			SYS.exec(get_info)
 		else
@@ -6986,7 +6992,7 @@ function oix_checkin()
 	local token = fs.uci_get_config("config", "oix_token")
 	local multiple = fs.uci_get_config("config", "oix_checkin_multiple") or 1
 	if token then
-		info = SYS.exec(string.format("curl -sL -m 20 --proto '=https' --proto-redir '=https' -H 'User-Agent: OpenClash for oixCloud' -H 'X-oixCloud-Client: openclash' -H 'Content-Type: application/json' -H 'Authorization: Bearer %s' -d '{\"multiple\":\"%s\"}' -X POST https://oix-api.dler.io/api/v1/checkin", token, multiple))
+		info = SYS.exec(string.format("curl -sL -m 20 --proto '=https' --proto-redir '=https' -H 'User-Agent: OpenClash for oixCloud'%s -H 'Content-Type: application/json' -H 'Authorization: Bearer %s' -d '{\"multiple\":\"%s\"}' -X POST https://oix-api.dler.io/api/v1/checkin", oix_client_headers(), token, multiple))
 		if info then
 			info = json.parse(info)
 		end

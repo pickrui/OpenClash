@@ -412,6 +412,28 @@ function get_file_path_from_request()
 	return file_path
 end
 
+-- 面板按这个随机安装标识统计账户在用的设备数，不参与鉴权。内核以 /etc/openclash 为 home 目录读写同一个文件，
+-- 网页和内核谁先请求面板谁生成；备份不带走它，恢复备份时保留本机原有的标识，免得两台路由器共用一个
+OIX_DEVICE_FILE = "/etc/openclash/.oix_device_id"
+
+local function valid_device_id(id)
+	return id:match("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-4%x%x%x%-[89ab]%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil
+end
+
+function oix_device_id()
+	local id = (fs.readfile(OIX_DEVICE_FILE) or ""):gsub("%s", ""):lower()
+	if valid_device_id(id) then
+		return id
+	end
+	id = (fs.readfile("/proc/sys/kernel/random/uuid") or ""):gsub("%s", ""):lower()
+	local temp = OIX_DEVICE_FILE .. ".tmp"
+	if valid_device_id(id) and fs.writefile(temp, id) and fs.chmod(temp, "600") and fs.rename(temp, OIX_DEVICE_FILE) then
+		return id
+	end
+	fs.unlink(temp)
+	return nil
+end
+
 function restore_backup(archive)
 	local quoted = UTIL.shellquote(archive)
 	local listfile = "/tmp/oc_restore.list"
@@ -424,8 +446,15 @@ function restore_backup(archive)
 	local unsafe = SYS.call("grep -qE '(^|/)\\.\\./|^/' " .. listfile) == 0
 	local restored = false
 	if tarok and has_members and has_config and not unsafe then
+		local device = fs.readfile(OIX_DEVICE_FILE)
 		if SYS.call("tar -C '/etc/openclash/' -xzf " .. quoted .. " >/dev/null 2>&1") == 0 then
 			restored = SYS.call("mv -f /etc/openclash/openclash /etc/config/openclash >/dev/null 2>&1") == 0
+		end
+		if device then
+			fs.writefile(OIX_DEVICE_FILE, device)
+			fs.chmod(OIX_DEVICE_FILE, "600")
+		else
+			fs.unlink(OIX_DEVICE_FILE)
 		end
 	end
 	SYS.call("rm -f " .. listfile)
