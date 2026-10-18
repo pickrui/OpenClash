@@ -6847,15 +6847,6 @@ local function fetch_oix_sub(token)
 	if type(sub_url) ~= "string" or not sub_url:match("^https://[^/%s]+/") or sub_url:find("[%c]") then
 		return nil, "Unable to fetch managed configuration"
 	end
-	local core = coremetacv()
-	if core == "0" or not string.match(core, "oix") then
-		oix_progress("downloading_core", "Installing oixCloud core and restarting...")
-		SYS.call("OIX_INSTALL_ONLY=1 /usr/share/openclash/openclash_core.sh Oix >/dev/null 2>&1")
-		local installed = coremetacv()
-		if installed == "0" or not string.match(installed, "oix") then
-			return nil, "Unable to update the oixCloud core"
-		end
-	end
 	uci:set("openclash", "config", "oix_token", token)
 	uci:commit("openclash")
 	local sub_match, sub_convert, sid = false, false, nil
