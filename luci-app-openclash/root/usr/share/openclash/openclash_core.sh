@@ -95,7 +95,9 @@ fi
 
 [ "$C_CORE_TYPE" != "$CORE_TYPE" ] || [ -z "$C_CORE_TYPE" ] && restart=1
 
-if [ -n "$DIRECT_CORE_URL" ] || [ "$CORE_CV" != "$CORE_LV" ] || [ -z "$CORE_CV" ]; then
+force_oix_update=0
+[ "$CORE_TYPE" = "Oix" ] && [ "${OIX_FORCE_UPDATE:-0}" = "1" ] && force_oix_update=1
+if [ "$force_oix_update" = "1" ] || [ -n "$DIRECT_CORE_URL" ] || [ "$CORE_CV" != "$CORE_LV" ] || [ -z "$CORE_CV" ]; then
    if [ "$CPU_MODEL" != 0 ]; then
       LOG_TIP "【"$CORE_TYPE"】Core Downloading, Please Try to Download and Upload Manually If Fails"
       # If $2 is a full download URL, use it directly
@@ -129,7 +131,9 @@ if [ -n "$DIRECT_CORE_URL" ] || [ "$CORE_CV" != "$CORE_LV" ] || [ -z "$CORE_CV" 
 
          rm -rf "$DOWNLOAD_FILE" "$TMP_FILE" >/dev/null 2>&1
 
-         SHOW_DOWNLOAD_PROGRESS=1 DOWNLOAD_FILE_CURL "$DOWNLOAD_URL" "$DOWNLOAD_FILE" "$TARGET_CORE_PATH"
+         cache_target="$TARGET_CORE_PATH"
+         [ "$force_oix_update" = "1" ] && cache_target=""
+         SHOW_DOWNLOAD_PROGRESS=1 DOWNLOAD_FILE_CURL "$DOWNLOAD_URL" "$DOWNLOAD_FILE" "$cache_target"
          DOWNLOAD_RESULT=$?
 
          if [ "$DOWNLOAD_RESULT" -eq 0 ]; then

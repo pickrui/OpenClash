@@ -103,7 +103,11 @@ if [ -z "$DOWNLOAD_URL" ]; then
    DOWNLOAD_URL="${subscribe_url}"
 fi
 DOWNLOAD_PARAM="$sub_ua"
-DOWNLOAD_FILE_CURL "$DOWNLOAD_URL" "$CFG_FILE" "$CONFIG_FILE" "$DOWNLOAD_PARAM" "$SECRET_KEY" "$sub_headers"
+if [ "$name" = "oixCloud - smart" ]; then
+   OIX_INSTALL_ONLY="$norestart" sh /usr/share/openclash/openclash_oix_download.sh "$DOWNLOAD_URL" "$CFG_FILE"
+else
+   DOWNLOAD_FILE_CURL "$DOWNLOAD_URL" "$CFG_FILE" "$CONFIG_FILE" "$DOWNLOAD_PARAM" "$SECRET_KEY" "$sub_headers"
+fi
 DOWNLOAD_RESULT=$?
 }
 
@@ -234,6 +238,12 @@ change_dns()
 
 config_download_direct()
 {
+   # The managed downloader already tried direct and proxy; do not repeat it
+   # by disabling routing for every device on the router.
+   if [ "$name" = "oixCloud - smart" ]; then
+      config_error
+      return
+   fi
    if pidof clash >/dev/null && [ "$router_self_proxy" = 1 ]; then
       kill_streaming_unlock
       procd_send_signal "openclash-watchdog" "" STOP

@@ -6878,7 +6878,7 @@ local function fetch_oix_sub(token)
 		uci:commit("openclash")
 	end
 	oix_progress("downloading_config", "Downloading config...")
-	local yaml_rc = SYS.call(string.format("curl -sL -m 10 --retry 2 --user-agent \"clash\" %s -o \"/tmp/oixCloud-smart.yaml.new\" >/dev/null 2>&1", oix_quote(sub_url)))
+	local yaml_rc = SYS.call(string.format("sh /usr/share/openclash/openclash_oix_download.sh %s \"/tmp/oixCloud-smart.yaml.new\" >/dev/null 2>&1", oix_quote(sub_url)))
 	if yaml_rc ~= 0 then
 		fs.unlink("/tmp/oixCloud-smart.yaml.new")
 		return nil, "Unable to fetch managed configuration"
