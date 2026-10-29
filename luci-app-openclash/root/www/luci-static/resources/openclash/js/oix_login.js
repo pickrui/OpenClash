@@ -197,6 +197,9 @@ var OixCloud = {
                 if (cards) cards.classList.add('oc-hidden');
                 var ann = document.getElementById('oix-announce');
                 if (ann) ann.classList.add('oc-hidden');
+                var message = status && typeof status.msg === 'string' && status.msg.trim()
+                    ? status.msg : '<%:Failed to get data, will retry%>';
+                OixMsg.show(message, 'error');
             }
         });
     },

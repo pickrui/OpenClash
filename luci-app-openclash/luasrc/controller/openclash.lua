@@ -6774,17 +6774,24 @@ local function oix_api(path, token, payload, timeout, with_ua)
 	return nil
 end
 
+local function oix_error_message(info, fallback)
+	if type(info) == "table" and type(info.msg) == "string" and info.msg:match("%S") then
+		return info.msg
+	end
+	return luci.i18n.translate(fallback)
+end
+
 local function oix_account_token(token)
 	if not oix_valid_token(token) then return nil, "invalid token" end
 	local info = oix_api("information", token)
-	if not info or info.ret ~= 200 or type(info.data) ~= "table" then return nil, "login failed" end
+	if not info or info.ret ~= 200 or type(info.data) ~= "table" then return nil, oix_error_message(info, "login failed") end
 	if type(info.data.token_client) == "string" and info.data.token_client ~= "" and info.data.token_client ~= "openclash" then
 		local rebound = oix_api("token/rebind", token)
 		if rebound and rebound.ret == 200 and type(rebound.data) == "table"
 			and rebound.data.token_client == "openclash" and oix_valid_token(rebound.data.token) then
 			return rebound.data.token
 		end
-		return nil, "Unable to select the OpenClash account"
+		return nil, oix_error_message(rebound, "Unable to select the OpenClash account")
 	end
 	return token
 end
@@ -6904,7 +6911,7 @@ function oix_login()
 		write_padded('{"stage":"logging_in","text":"' .. luci.i18n.translate("Logging in...") .. '"}')
 		local info = oix_api("login", nil, json.stringify({email = email, passwd = passwd, token_expire = "365"}), 30, true)
 		if not info or info.ret ~= 200 or type(info.data) ~= "table" or not oix_valid_token(info.data.token) then
-			local message = (info and info.msg) or luci.i18n.translate("login failed")
+			local message = oix_error_message(info, "login failed")
 			write_padded('{"stage":"error","result":' .. json.stringify(message) .. '}')
 			return
 		end
@@ -6962,19 +6969,18 @@ function oix_info()
 		end
 		info = fs.readfile(path)
 		if info then
-			info = json.parse(info)
+			local ok, decoded = pcall(json.parse, info)
+			info = ok and type(decoded) == "table" and decoded or nil
 		end
-		if info and info.ret == 200 and info.data then
+		if info and info.ret == 200 and type(info.data) == "table" then
 			result = info.data
-		elseif info and info.msg then
-			fs.writefile(path, json.stringify(info))
 		else
 			fs.unlink(path)
 		end
 	end
 	HTTP.prepare_content("application/json")
 	HTTP.header("Cache-Control", "no-store")
-	HTTP.write_json({result = result})
+	HTTP.write_json({result = result, msg = result == "error" and oix_error_message(info, "Failed to get data, will retry") or nil})
 end
 
 function oix_checkin()
